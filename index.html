@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>White Clock Face + Black Hand + Sky Blend</title>
+  <style>
+    html, body {
+      margin: 0;
+      height: 100%;
+      background: rgba(0,0,0,0); /* fully transparent page */
+    }
+    /* Fullscreen background canvas */
+    #bg {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      background: transparent;
+      pointer-events: none;
+      z-index: 0;
+    }
+    /* Clock canvas pinned top-left */
+    #clock {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 160px;
+      height: 160px;
+      background: transparent;
+      pointer-events: none;
+      z-index: 1;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="bg"></canvas>
+  <canvas id="clock" width="160" height="160"></canvas>
+
+  <script>
+    // ===== Config =====
+    const BG_ALPHA = 0.2; // visible but subtle
+
+    // Vancouver August: midnight to pre-dawn (5:00 AM), sunrise ~6:00 AM
+    const SKY_MIDNIGHT = { r: 13,  g: 27,  b: 58  }; // deep navy
+    const SKY_5AM      = { r: 120, g: 160, b: 225 }; // cool pre-dawn
+
+    const DURATION = 5 * 60 * 1000; // 5 minutes total
+    const startAngle = -Math.PI / 2;                   // 12 o'clock
+    const endAngle   = startAngle + 5 * (Math.PI / 6); // sweep to 5 o'clock
+
+    const bg = document.getElementById('bg');
+    const clock = document.getElementById('clock');
+    const bgCtx = bg.getContext('2d');
+    const clockCtx = clock.getContext('2d');
+
+    // Helpers
+    function fitForDPR(canvas, ctx) {
+      const dpr = window.devicePixelRatio || 1;
+      const cssW = canvas.clientWidth;
+      const cssH = canvas.clientHeight;
+      if (canvas.width !== cssW * dpr || canvas.height !== cssH * dpr) {
+        canvas.width = cssW * dpr;
+        canvas.height = cssH * dpr;
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      }
+    }
+    const lerp = (a, b, t) => a + (b - a) * t;
+    const clamp01 = x => Math.max(0, Math.min(1, x));
+    const easeInOutQuad = t => (t < 0.5 ? 2*t*t : 1 - Math.pow(-2*t + 2, 2)/2);
+
+    // Background blend
+    function renderBackground(t) {
+      fitForDPR(bg, bgCtx);
+      const w = bg.clientWidth;
+      const h = bg.clientHeight;
+
+      const te = easeInOutQuad(clamp01(t));
+      const r = Math.round(lerp(SKY_MIDNIGHT.r, SKY_5AM.r, te));
+      const g = Math.round(lerp(SKY_MIDNIGHT.g, SKY_5AM.g, te));
+      const b = Math.round(lerp(SKY_MIDNIGHT.b, SKY_5AM.b, te));
+
+      bgCtx.clearRect(0, 0, w, h);
+      bgCtx.fillStyle = `rgba(${r}, ${g}, ${b}, ${BG_ALPHA})`;
+      bgCtx.fillRect(0, 0, w, h);
+    }
+
+    // Clock face + hand
+    function renderClock(angle) {
+      fitForDPR(clock, clockCtx);
+      const w = clock.clientWidth, h = clock.clientHeight;
+      const cx = w / 2, cy = h / 2;
+      const r = Math.min(w, h) * 0.45;
+
+      clockCtx.clearRect(0, 0, w, h);
+
+      // White clock face
+      clockCtx.beginPath();
+      clockCtx.arc(cx, cy, r, 0, Math.PI * 2);
+      clockCtx.fillStyle = '#fff';
+      clockCtx.fill();
+
+      // Black hand
+      clockCtx.beginPath();
+      clockCtx.moveTo(cx, cy);
+      clockCtx.lineTo(cx + r * 0.9 * Math.cos(angle), cy + r * 0.9 * Math.sin(angle));
+      clockCtx.lineWidth = 3;
+      clockCtx.lineCap = 'round';
+      clockCtx.strokeStyle = '#000';
+      clockCtx.stroke();
+
+      // Black center pin
+      clockCtx.beginPath();
+      clockCtx.arc(cx, cy, 3, 0, Math.PI * 2);
+      clockCtx.fillStyle = '#000';
+      clockCtx.fill();
+    }
+
+    // Animation
+    let startTime;
+    function loop(ts) {
+      if (!startTime) startTime = ts;
+      const elapsed = ts - startTime;
+      const t = Math.min(elapsed / DURATION, 1); // 0..1
+
+      renderBackground(t);
+      const angle = startAngle + t * (endAngle - startAngle);
+      renderClock(angle);
+
+      if (t < 1) requestAnimationFrame(loop);
+    }
+
+    window.addEventListener('resize', () => {
+      fitForDPR(bg, bgCtx);
+      fitForDPR(clock, clockCtx);
+    });
+
+    requestAnimationFrame(loop);
+  </script>
+</body>
+</html>
